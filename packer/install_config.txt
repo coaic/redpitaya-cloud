@@ -1,0 +1,14 @@
+# install_config.txt
+# Vivado 2020.1 silent install config.
+# WebPack edition is free and supports Zynq 7010/7020 (the Red Pitaya parts).
+
+Edition=Vivado HL WebPACK
+Product=Vivado
+Destination=/tools/Xilinx
+Modules=Zynq-7000:1
+InstallOptions=
+CreateProgramGroupShortcuts=0
+CreateShortcutsForAllUsers=0
+CreateDesktopShortcuts=0
+CreateFileAssociation=0
+EnableDiskUsageOptimization=1
