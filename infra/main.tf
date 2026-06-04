@@ -61,6 +61,15 @@ module "iam" {
   depends_on = [module.apis]
 }
 
+module "networking" {
+  source        = "./modules/networking"
+  project_id    = var.project_id
+  region        = var.region
+  ip_cidr_range = "10.152.0.0/20"
+
+  depends_on = [module.apis]
+}
+
 module "budget" {
   source          = "./modules/budget"
   count           = var.billing_account != "" ? 1 : 0

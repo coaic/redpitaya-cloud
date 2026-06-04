@@ -28,6 +28,9 @@ read -r -d '' BUILD_SCRIPT <<'EOF' || true
 set -e
 exec > >(tee /var/log/build.log) 2>&1
 
+export HOME=/root
+GCP_SDK_BIN=$(dirname $(command -v gsutil 2>/dev/null || echo /usr/lib/google-cloud-sdk/bin/gsutil))
+
 STRATEGIES=(
   "default:default"
   "Flow_PerfOptimized_high:Performance_Explore"
@@ -46,10 +49,12 @@ IMPL_STRAT="${PAIR##*:}"
 echo "Task ${BATCH_TASK_INDEX}: synth=${SYNTH_STRAT} impl=${IMPL_STRAT}"
 
 cd /tmp
+rm -rf project
 git clone --depth=1 --branch "GIT_REF_PLACEHOLDER" "GIT_REPO_PLACEHOLDER" project
 cd project
 
 source /tools/Xilinx/Vivado/2020.1/settings64.sh
+export PATH="${GCP_SDK_BIN}:${PATH}"
 
 # Pass strategies via Vivado env vars. The Red Pitaya TCL scripts don't read
 # these by default — patch red_pitaya_vivado_Z20_G2.tcl to honour them if
@@ -110,7 +115,7 @@ CONFIG=$(cat <<EOF
           "bootDisk": {
             "image": "${IMAGE_URI}",
             "type": "pd-balanced",
-            "sizeGb": 50
+            "sizeGb": 160
           }
         }
       }

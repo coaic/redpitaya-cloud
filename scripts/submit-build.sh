@@ -28,9 +28,31 @@ read -r -d '' BUILD_SCRIPT <<EOF || true
 set -e
 exec > >(tee /var/log/build.log) 2>&1
 
+# Batch VMs may not set HOME; Vivado requires it to expand ~/.oasys paths
+export HOME=/root
+
+# Upload helper — uses curl + GCE metadata token (avoids gsutil/snap issues)
+gcs_upload() {
+  local src="\$1" dst="\$2"
+  local token
+  token=\$(curl -sf \
+    -H "Metadata-Flavor: Google" \
+    "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+  local object
+  object=\$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "\${dst}")
+  curl -sf -X POST \
+    -H "Authorization: Bearer \${token}" \
+    -H "Content-Type: application/octet-stream" \
+    --data-binary "@\${src}" \
+    "https://storage.googleapis.com/upload/storage/v1/b/${BUCKET}/o?uploadType=media&name=\${object}" \
+    > /dev/null && echo "Uploaded \${src} -> gs://${BUCKET}/\${dst}" || echo "WARNING: upload failed for \${src}"
+}
+
 echo "Batch task: \${BATCH_TASK_INDEX} of \${BATCH_TASK_COUNT}"
 
 cd /tmp
+rm -rf project   # clean up from any prior retry attempt
 git clone --depth=1 --branch "${GIT_REF}" "${GIT_REPO}" project
 cd project
 
@@ -39,8 +61,11 @@ source /tools/Xilinx/Vivado/2020.1/settings64.sh
 # Build bitstream only (not FSBL/DTS which require xsct/SDK)
 make PRJ=v0.94 MODEL=Z20_G2 prj/v0.94/out/red_pitaya.bit || BUILD_FAILED=1
 
-gsutil cp /var/log/build.log "gs://${BUCKET}/${JOB_NAME}/"
-gsutil -m cp -r prj/v0.94/out/*.bit "gs://${BUCKET}/${JOB_NAME}/" 2>/dev/null || true
+# Upload artifacts via curl + GCE metadata token (no gsutil dependency)
+gcs_upload /var/log/build.log "${JOB_NAME}/build.log"
+for f in prj/v0.94/out/*.bit; do
+  [ -f "\$f" ] && gcs_upload "\$f" "${JOB_NAME}/\$(basename \$f)"
+done
 
 [ -z "\${BUILD_FAILED:-}" ]
 EOF
@@ -78,7 +103,7 @@ CONFIG=$(cat <<EOF
           "bootDisk": {
             "image": "${IMAGE_URI}",
             "type": "pd-balanced",
-            "sizeGb": 50
+            "sizeGb": 160
           }
         }
       }
