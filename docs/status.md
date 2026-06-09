@@ -12,7 +12,7 @@ Last updated: 2026-06-09
 | Packer image `vivado-redpitaya` | ✅ Ready | `vivado-2020-1-1780984785` — Vivado 2020.1 + XFCE + XRDP |
 | Cloud Batch pipeline | ✅ Working | Tested against placeholder repo |
 | IAP firewall rule | ✅ Applied | `allow-rdp-iap` → port 3389 |
-| `vivado-desktop` VM | ✅ Created | **STOPPED** — start with `./scripts/start-desktop.sh` |
+| `vivado-desktop` VM | ✅ On-demand | Created/deleted by scripts — no idle cost |
 | Remote desktop PoC | ✅ Validated | XRDP + XFCE responsive, Vivado GUI usable |
 
 ## Next Steps
@@ -45,8 +45,9 @@ validates, merge to main.
 `Release-20xx.x` branches in `RedPitaya/RedPitaya-FPGA` also use 2020.1 — the branch
 naming refers to the Red Pitaya software release, not the Vivado version.
 
-**Desktop VM cost**: ~$0.19/hr while running, ~$0.16/day while stopped (disk only).
-Always stop with `./scripts/stop-desktop.sh` after use.
+**Desktop VM cost**: ~$0.19/hr while running, zero when not in use.
+`start-desktop.sh` creates the VM fresh from the image each session.
+`stop-desktop.sh` deletes it entirely — no idle disk charges.
 
 **Desktop login**: username `packer`, password set manually via `sudo passwd packer`
 after first SSH in. If password is forgotten, SSH in again and reset it.
