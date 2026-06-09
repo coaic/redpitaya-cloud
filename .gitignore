@@ -1,0 +1,11 @@
+# Terraform
+infra/.terraform/
+infra/.terraform.lock.hcl
+infra/*.tfvars
+infra/*.tfvars.json
+
+# Packer
+packer/packer_cache/
+
+# macOS
+.DS_Store
