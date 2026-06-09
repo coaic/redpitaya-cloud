@@ -239,11 +239,19 @@ A 2-hour Vivado GUI session costs ~$0.40. Leaving the VM running overnight would
 
 ## Implementation order
 
-1. Fix Packer script (Phase 1) — streaming + disk size
-2. Add XFCE + XRDP provisioners (Phase 2)
-3. Bake new `vivado-redpitaya` image
-4. Add IAP firewall rule + IAM binding (Phase 3)
-5. Create `vivado-desktop` VM instance (Phase 4)
-6. Test connection from Mac via Microsoft Remote Desktop (Phase 5)
-7. Clone Red Pitaya repo inside VM, open Vivado, verify GUI works (Phase 6)
-8. If successful, apply same pattern to KiwiSDR (Vivado 2024.2)
+1. ✅ Fix Packer script (Phase 1) — streaming + disk size
+2. ✅ Add XFCE + XRDP provisioners (Phase 2)
+3. ✅ Bake new `vivado-redpitaya` image (`vivado-2020-1-1780984785`)
+4. ✅ Add IAP firewall rule + IAM binding (Phase 3)
+5. ✅ Create `vivado-desktop` VM instance (Phase 4)
+6. ✅ Test connection from Mac via Microsoft Remote Desktop (Phase 5)
+7. ✅ Open Vivado, rendered schematic, verified GUI works (Phase 6)
+8. ⬜ Apply same pattern to KiwiSDR (Vivado 2024.2) — next step
+
+## PoC Result (2026-06-09)
+
+- **Image**: `vivado-2020-1-1780984785` (Ubuntu 20.04 Pro + Vivado 2020.1 + XFCE + XRDP)
+- **VM**: `vivado-desktop` — n2-standard-4, 200 GB pd-balanced, australia-southeast1-a
+- **Protocol**: XRDP via IAP tunnel → Microsoft Remote Desktop on Mac
+- **Result**: GUI responsive, schematic renders correctly, usable for IP configuration and RTL editing
+- **Cost**: ~$0.19/hr while running, ~$0.16/day idle (disk only)
