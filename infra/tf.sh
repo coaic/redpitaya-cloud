@@ -25,6 +25,8 @@ if ! command -v yq &>/dev/null; then
   exit 1
 fi
 
+LOCAL_CONFIG="environments/${ENV}.local.yml"
+
 TFSTATE_BUCKET=$(yq '.tfstate_bucket' "${CONFIG}")
 
 if [[ "${CMD}" == "init" ]]; then
@@ -37,10 +39,17 @@ if [[ "${CMD}" == "init" ]]; then
 fi
 
 # Convert YAML → tfvars JSON for plan/apply/destroy
+# If a local override file exists (gitignored), merge it over the base config.
 TMPFILE=$(mktemp /tmp/tfvars.XXXXXX.json)
 trap 'rm -f "${TMPFILE}"' EXIT
 
-yq -o=json 'del(.tfstate_bucket)' "${CONFIG}" > "${TMPFILE}"
+if [[ -f "${LOCAL_CONFIG}" ]]; then
+  yq -o=json 'del(.tfstate_bucket)' "${CONFIG}" \
+    | yq -o=json ". * $(yq -o=json 'del(.tfstate_bucket)' "${LOCAL_CONFIG}")" \
+    > "${TMPFILE}"
+else
+  yq -o=json 'del(.tfstate_bucket)' "${CONFIG}" > "${TMPFILE}"
+fi
 
 echo "--- terraform ${CMD} [env=${ENV}] ---"
 terraform "${CMD}" -var-file="${TMPFILE}" "${@:3}"

@@ -3,6 +3,7 @@ infra/.terraform/
 infra/.terraform.lock.hcl
 infra/*.tfvars
 infra/*.tfvars.json
+infra/environments/*.local.yml
 
 # Packer
 packer/packer_cache/
