@@ -19,10 +19,12 @@ For one-off questions without a full session, paste this into Claude:
 
 > I'm working on redpitaya-cloud — GCP Cloud Batch FPGA builds for Red Pitaya Gen 2
 > using Vivado 2020.1. Here is the error I hit: [paste error]. Relevant context:
-> project `redpitaya-fpga-builds`, installer bucket `redpitaya-fpga-builds-fpga-installer`,
-> artifacts bucket `redpitaya-fpga-builds-fpga-artifacts`, service account
-> `fpga-builder@redpitaya-fpga-builds.iam.gserviceaccount.com`,
+> project `YOUR_PROJECT_ID`, installer bucket `YOUR_INSTALLER_BUCKET`,
+> artifacts bucket `YOUR_ARTIFACTS_BUCKET`, service account
+> `fpga-builder@YOUR_PROJECT_ID.iam.gserviceaccount.com`,
 > image family `vivado-2020-1`. Help me diagnose this.
+>
+> (Run `cd infra && terraform output` to get the exact bucket names for your deployment.)
 
 ---
 
@@ -99,7 +101,7 @@ Give Claude the job name and ask it to fetch the `build.log` from GCS:
 why did job vivado-20260101-120000 fail?
 ```
 
-Claude reads `gs://redpitaya-fpga-builds-fpga-artifacts/JOB_NAME/build.log`
+Claude reads `gs://ARTIFACTS_BUCKET/JOB_NAME/build.log` (run `cd infra && terraform output artifacts_bucket`)
 directly and diagnoses the error. (The log is uploaded even on failure via the
 `trap` in `submit-build.sh`.)
 
@@ -130,7 +132,7 @@ gcloud compute images list --project=redpitaya-fpga-builds \
   --no-standard-images --filter="family=vivado-2020-1"
 
 # Check IAM bindings on the installer bucket
-gsutil iam get gs://redpitaya-fpga-builds-fpga-installer
+gsutil iam get $(cd infra && terraform output -raw installer_bucket_url)
 
 # Check service account exists
 gcloud iam service-accounts describe \

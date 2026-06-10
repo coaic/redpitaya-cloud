@@ -68,7 +68,8 @@ gcloud batch jobs describe ${JOB} \
 The only file you need locally is the bitstream to flash to hardware:
 
 ```bash
-gsutil cp "gs://redpitaya-fpga-builds-fpga-artifacts/${JOB}/*.bit" ./
+ARTIFACTS=$(cd infra && terraform output -raw artifacts_bucket)
+gsutil cp "gs://${ARTIFACTS}/${JOB}/*.bit" ./
 ```
 
 All diagnostic files (`build.log`, `.rpt` timing reports) stay in GCS —
@@ -140,8 +141,8 @@ Use a fast, cheap model (Sonnet) for the tight edit→build→debug loop:
 - **Diagnose a build failure** — paste the error from `build.log` and ask what
   caused it. Claude can read the log directly from GCS:
   ```
-  fetch gs://redpitaya-fpga-builds-fpga-artifacts/<job>/build.log and tell me
-  why the build failed
+  fetch gs://<artifacts-bucket>/<job>/build.log and tell me why the build failed
+  (run: cd infra && terraform output artifacts_bucket)
   ```
 - **Interpret timing** — paste the Timing Summary section and ask whether timing
   is acceptable, what the critical path is, and what RTL or constraint change
@@ -204,7 +205,7 @@ Only needed when changing Vivado version or adding system packages:
 cd packer
 packer build \
   -var project_id=${GCP_PROJECT} \
-  -var vivado_installer_gcs=gs://redpitaya-fpga-builds-fpga-installer/Xilinx_Unified_2020.1_*.tar.gz \
+  -var "vivado_installer_gcs=$(cd infra && terraform output -raw installer_bucket_url)/Xilinx_Unified_2020.1_*.tar.gz" \
   vivado-image.pkr.hcl
 ```
 
@@ -214,7 +215,7 @@ New image joins the `vivado-2020-1` family immediately.
 
 ```bash
 gcloud batch jobs list --location=australia-southeast1 --project=redpitaya-fpga-builds
-gsutil du -sh "gs://redpitaya-fpga-builds-fpga-artifacts/"
+gsutil du -sh "gs://$(cd infra && terraform output -raw artifacts_bucket)/"
 ```
 
 The budget alert (if configured in `dev.yml`) emails you at 50%, 90%, and 100%
