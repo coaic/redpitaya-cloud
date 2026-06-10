@@ -102,11 +102,14 @@ gcloud logging read \
   --format='value(textPayload)'
 ```
 
-Or fetch the uploaded `build.log`:
+Or give Claude the job name and ask it to fetch the `build.log` from GCS:
 
-```bash
-gsutil cp "gs://redpitaya-fpga-builds-fpga-artifacts/JOB_NAME/build.log" ./build.log
 ```
+why did job vivado-20260101-120000 fail?
+```
+
+Claude will read `gs://redpitaya-fpga-builds-fpga-artifacts/JOB_NAME/build.log`
+directly and diagnose the error.
 
 ---
 

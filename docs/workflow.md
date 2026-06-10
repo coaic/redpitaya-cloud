@@ -65,47 +65,41 @@ gcloud batch jobs describe ${JOB} \
 
 ## 3. Retrieve Artifacts
 
+The only file you need locally is the bitstream to flash to hardware:
+
 ```bash
-BUCKET=redpitaya-fpga-builds-fpga-artifacts
-
-# List outputs
-gsutil ls "gs://${BUCKET}/${JOB}/"
-
-# Download bitstream
-gsutil cp "gs://${BUCKET}/${JOB}/*.bit" ./
-
-# View build log (includes timing summary)
-gsutil cat "gs://${BUCKET}/${JOB}/build.log"
+gsutil cp "gs://redpitaya-fpga-builds-fpga-artifacts/${JOB}/*.bit" ./
 ```
+
+All diagnostic files (`build.log`, `.rpt` timing reports) stay in GCS —
+hand the job name to Claude and it will fetch and analyse them directly.
 
 ---
 
 ## 4. Check Timing
 
-**Quick check** — scan the build log for Worst Negative Slack:
+Give Claude the job name:
 
-```bash
-gsutil cat "gs://${BUCKET}/${JOB}/build.log" | grep -E "WNS|Timing"
+```
+check timing for job vivado-20260101-120000
 ```
 
-A positive WNS means timing is met. Negative means a timing violation — the
-bitstream may be unreliable at the target clock frequency.
+Claude fetches the timing reports from GCS and tells you whether timing is
+met, what the Worst Negative Slack is, and what to change if it isn't.
 
-**Strategy sweep results** — compare WNS across all 8 strategies:
+**Strategy sweep** — after a sweep, ask Claude:
 
-```bash
-gsutil cat "gs://${BUCKET}/vivado-sweep-<DATE>/*/wns.csv"
+```
+compare WNS across all strategies in sweep vivado-sweep-20260101-120000
+and recommend which one to use
 ```
 
-Pick the strategy with the best (least negative or most positive) WNS and wire
-it permanently into the project Makefile.
-
-**Interactive timing analysis** — start the remote desktop and open the
-project in Vivado to inspect the Timing Summary report or critical paths:
+**Interactive timing analysis** — start the remote desktop to inspect critical
+paths visually in Vivado:
 
 ```bash
 ./scripts/start-desktop.sh
-# open Vivado → File → Open Project → navigate to a local copy of the build
+# open Vivado → File → Open Project
 ./scripts/stop-desktop.sh   # when done
 ```
 
@@ -180,10 +174,8 @@ missed bug would mean another full build cycle or a broken bitstream.
 
 - Claude has no local Vivado installation and cannot run synthesis — it works
   from source files and build logs, not from running Vivado itself.
-- Any file uploaded to GCS is directly accessible to Claude via `gsutil cat` —
-  you don't need to download `.rpt` or `.bit` files locally first. Just give
-  Claude the job name and it can fetch and analyse the timing reports directly
-  from `gs://redpitaya-fpga-builds-fpga-artifacts/<job>/`.
+- All diagnostic files (`build.log`, `.rpt`) live in GCS — Claude fetches them
+  directly via `gsutil cat`. You never need to download them locally.
 - If a build fails with a cryptic Vivado message, paste the full surrounding
   context (not just the error line) — Vivado errors are often consequences of
   an earlier root cause several lines up.
