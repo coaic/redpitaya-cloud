@@ -18,7 +18,6 @@ set -euo pipefail
 
 PROJECT="${GCP_PROJECT:-redpitaya-fpga-builds}"
 ZONE="${GCP_ZONE:-australia-southeast1-a}"
-REGION="${GCP_REGION:-australia-southeast1}"
 INSTANCE="vivado-desktop"
 
 # Create VM if it doesn't exist

@@ -225,3 +225,14 @@ gsutil du -sh "gs://$(cd infra && terraform output -raw artifacts_bucket)/"
 
 The budget alert (if configured in `dev.yml`) emails you at 50%, 90%, and 100%
 of the monthly limit.
+
+## Linting Scripts
+
+Before pushing changes to any `scripts/` file, run:
+
+```bash
+make lint
+```
+
+This runs `shellcheck` over all shell scripts and reports any issues. Install
+shellcheck with `brew install shellcheck` if you don't have it.
