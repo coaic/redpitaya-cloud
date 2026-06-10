@@ -1,63 +1,136 @@
-# Day-to-Day Workflow
+# Developer Workflow
 
-## Single Build
+The typical loop: edit gateware → submit cloud build → check timing → repeat.
 
-Submit one build from a git branch:
+---
+
+## 1. Edit Gateware
+
+### Option A — Edit locally, push to fork
+
+Edit RTL files in your local Red Pitaya FPGA checkout. The source lives under
+`prj/v0.94/` and `rtl/`:
 
 ```bash
-export GCP_PROJECT=your-project-id
-# optionally override region
-export GCP_REGION=australia-southeast1
-
-./scripts/submit-build.sh git@github.com:org/repo.git main
-./scripts/submit-build.sh git@github.com:org/repo.git feature/my-branch
+cd ~/Projects/Github/coaic/RedPitaya-FPGA   # or wherever you cloned it
+# edit RTL files
+git add -p
+git commit -m "describe change"
+git push origin master   # or your branch
 ```
 
-The job runs as a SPOT VM, uploads `out/*.bit` and `build.log` to GCS, then
-terminates. Estimated cost: ~$0.10–$0.30 per build on n2-custom-4-32768 SPOT.
+### Option B — Edit in Vivado GUI on the remote desktop
 
-## Strategy Sweep (Parallel Timing Exploration)
-
-Run 8 Vivado synth/impl strategy combinations in parallel to find the best
-timing closure:
+For IP reconfiguration or timing-driven changes that need the Vivado GUI:
 
 ```bash
-./scripts/submit-sweep.sh git@github.com:org/repo.git main
+./scripts/start-desktop.sh
 ```
 
-When complete, compare Worst Negative Slack across strategies:
+Open Microsoft Remote Desktop → `localhost:3389` → username `packer`.
+Vivado is pre-installed. Make changes, export any modified IP XCI files back to
+your local checkout, then push.
 
 ```bash
-gsutil cat "gs://${GCP_PROJECT}-fpga-artifacts/vivado-sweep-<DATE>/*/wns.csv"
+./scripts/stop-desktop.sh   # deletes VM when done — no idle charges
 ```
 
-Pick the strategy with the best (least negative) WNS, then wire that strategy
-permanently into your project Makefile.
+---
 
-## Retrieving Artifacts
+## 2. Submit a Cloud Build
 
 ```bash
-BUCKET="${GCP_PROJECT}-fpga-artifacts"
-JOB="vivado-20240601-120000"  # from submit output
+export GCP_PROJECT=redpitaya-fpga-builds
 
-# List all artifacts for a job
+# Single build from a branch
+./scripts/submit-build.sh https://github.com/coaic/RedPitaya-FPGA.git master
+
+# 8-way strategy sweep (parallel timing exploration)
+./scripts/submit-sweep.sh https://github.com/coaic/RedPitaya-FPGA.git master
+```
+
+The job prints a job name and GCS artifact path. Build takes ~8–10 minutes on
+a SPOT VM.
+
+Poll until done:
+
+```bash
+JOB=vivado-20260101-120000   # from submit output
+gcloud batch jobs describe ${JOB} \
+  --location=australia-southeast1 --project=redpitaya-fpga-builds \
+  --format='value(status.state)'
+```
+
+---
+
+## 3. Retrieve Artifacts
+
+```bash
+BUCKET=redpitaya-fpga-builds-fpga-artifacts
+
+# List outputs
 gsutil ls "gs://${BUCKET}/${JOB}/"
 
 # Download bitstream
 gsutil cp "gs://${BUCKET}/${JOB}/*.bit" ./
 
-# View build log
+# View build log (includes timing summary)
 gsutil cat "gs://${BUCKET}/${JOB}/build.log"
 ```
 
+---
+
+## 4. Check Timing
+
+**Quick check** — scan the build log for Worst Negative Slack:
+
+```bash
+gsutil cat "gs://${BUCKET}/${JOB}/build.log" | grep -E "WNS|Timing"
+```
+
+A positive WNS means timing is met. Negative means a timing violation — the
+bitstream may be unreliable at the target clock frequency.
+
+**Strategy sweep results** — compare WNS across all 8 strategies:
+
+```bash
+gsutil cat "gs://${BUCKET}/vivado-sweep-<DATE>/*/wns.csv"
+```
+
+Pick the strategy with the best (least negative or most positive) WNS and wire
+it permanently into the project Makefile.
+
+**Interactive timing analysis** — start the remote desktop and open the
+project in Vivado to inspect the Timing Summary report or critical paths:
+
+```bash
+./scripts/start-desktop.sh
+# open Vivado → File → Open Project → navigate to a local copy of the build
+./scripts/stop-desktop.sh   # when done
+```
+
+---
+
+## 5. Iterate
+
+If timing fails or the build errors:
+
+1. Check `build.log` for the first `ERROR:` line
+2. Fix in RTL or adjust constraints
+3. Push to fork and re-submit from step 2
+
+See `docs/troubleshooting.md` for common failure patterns.
+
+---
+
 ## Infrastructure Changes
 
-When you need to change Terraform config (e.g., retention period, budget):
+When you need to change Terraform config (retention period, budget, etc.):
 
 ```bash
 cd infra
 # edit environments/dev.yml
-./tf.sh dev plan    # review changes
+./tf.sh dev plan
 ./tf.sh dev apply
 ```
 
@@ -73,33 +146,14 @@ packer build \
   vivado-image.pkr.hcl
 ```
 
-New image joins the `vivado-2020-1` family immediately. Old images are kept
-by GCP (delete manually if space is a concern).
+New image joins the `vivado-2020-1` family immediately.
 
 ## Monitoring Costs
 
 ```bash
-# List recent Batch jobs and their states
-gcloud batch jobs list --location=australia-southeast1
-
-# GCS usage
-gsutil du -sh "gs://${GCP_PROJECT}-fpga-artifacts/"
+gcloud batch jobs list --location=australia-southeast1 --project=redpitaya-fpga-builds
+gsutil du -sh "gs://redpitaya-fpga-builds-fpga-artifacts/"
 ```
 
-The budget alert (if configured in dev.yml) will email you at 50%, 90%, and
-100% of the monthly limit.
-
-## Future: GitHub Actions Orchestration
-
-The submit scripts are plain shell — they can be called from a GitHub Actions
-workflow without changes:
-
-```yaml
-# .github/workflows/build-fpga.yml (future)
-- name: Submit FPGA build
-  env:
-    GCP_PROJECT: ${{ secrets.GCP_PROJECT }}
-  run: ./scripts/submit-build.sh ${{ github.repository }} ${{ github.sha }}
-```
-
-Workload Identity Federation is the recommended auth path (no long-lived keys).
+The budget alert (if configured in `dev.yml`) emails you at 50%, 90%, and 100%
+of the monthly limit.
