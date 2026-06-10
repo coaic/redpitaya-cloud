@@ -93,7 +93,17 @@ Common causes:
 
 ### Cloud Batch: job RUNNING but build fails
 
-Tail the logs:
+Give Claude the job name and ask it to fetch the `build.log` from GCS:
+
+```
+why did job vivado-20260101-120000 fail?
+```
+
+Claude reads `gs://redpitaya-fpga-builds-fpga-artifacts/JOB_NAME/build.log`
+directly and diagnoses the error. (The log is uploaded even on failure via the
+`trap` in `submit-build.sh`.)
+
+For real-time streaming before the job exits, tail the Cloud Logging stream:
 
 ```bash
 gcloud logging read \
@@ -101,15 +111,6 @@ gcloud logging read \
   --project=redpitaya-fpga-builds --limit=200 --order=asc \
   --format='value(textPayload)'
 ```
-
-Or give Claude the job name and ask it to fetch the `build.log` from GCS:
-
-```
-why did job vivado-20260101-120000 fail?
-```
-
-Claude will read `gs://redpitaya-fpga-builds-fpga-artifacts/JOB_NAME/build.log`
-directly and diagnose the error.
 
 ---
 
