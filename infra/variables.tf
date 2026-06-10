@@ -35,3 +35,19 @@ variable "artifact_retention_days" {
   description = "Days before artifacts are auto-deleted from GCS"
   default     = 30
 }
+
+variable "installer_bucket_name" {
+  type        = string
+  description = "GCS bucket name for the Vivado installer archive"
+}
+
+variable "subnet_cidr" {
+  type        = string
+  description = "IP CIDR range of the default subnet"
+  default     = "10.152.0.0/20"
+}
+
+variable "apis" {
+  type        = list(string)
+  description = "GCP APIs to enable in this project"
+}

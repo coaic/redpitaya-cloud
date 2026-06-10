@@ -14,8 +14,20 @@ submitter_email: rcoaic@gmail.com
 # Must match what bootstrap.sh creates: {project_id}-fpga-tfstate
 tfstate_bucket: redpitaya-fpga-builds-fpga-tfstate
 
-# Optional: set billing_account to enable budget alerts
-billing_account: "YOUR_BILLING_ACCOUNT_ID"
+installer_bucket_name: redpitaya-fpga-builds-fpga-installer
+subnet_cidr: 10.152.0.0/20
+
+apis:
+  - cloudresourcemanager.googleapis.com
+  - iam.googleapis.com
+  - compute.googleapis.com
+  - storage.googleapis.com
+  - batch.googleapis.com
+  - logging.googleapis.com
+  - billingbudgets.googleapis.com
+
+# Set billing_account to enable budget alerts (gcloud billing accounts list)
+billing_account: ""
 budget_usd: 20
 
 # Build artifacts are auto-deleted after this many days

@@ -53,3 +53,9 @@ resource "google_service_account_iam_member" "submitter_actas" {
   role               = "roles/iam.serviceAccountUser"
   member             = "user:${var.submitter_email}"
 }
+
+resource "google_storage_bucket_iam_member" "submitter_reader" {
+  bucket = var.artifacts_bucket_name
+  role   = "roles/storage.objectViewer"
+  member = "user:${var.submitter_email}"
+}
