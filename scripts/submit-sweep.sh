@@ -20,71 +20,15 @@ JOB_NAME="vivado-sweep-$(date +%Y%m%d-%H%M%S)"
 BUCKET="${PROJECT_ID}-${PROJECT_NUMBER}-fpga-artifacts"
 SA_EMAIL="fpga-builder@${PROJECT_ID}.iam.gserviceaccount.com"
 IMAGE_URI="projects/${PROJECT_ID}/global/images/family/vivado-2020-1"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Vivado strategies indexed by BATCH_TASK_INDEX (0..7).
-# Strategies map to Vivado's built-in synth/impl directives.
-# See UG904 and `report_strategy` in Vivado for the full list.
-read -r -d '' BUILD_SCRIPT <<'EOF' || true
-#!/bin/bash
-set -e
-exec > >(tee /var/log/build.log) 2>&1
-
-export HOME=/root
-GCP_SDK_BIN=$(dirname $(command -v gsutil 2>/dev/null || echo /usr/lib/google-cloud-sdk/bin/gsutil))
-
-STRATEGIES=(
-  "default:default"
-  "Flow_PerfOptimized_high:Performance_Explore"
-  "Flow_PerfThresholdCarry:Performance_ExtraTimingOpt"
-  "Flow_AlternateRoutability:Performance_NetDelay_high"
-  "Flow_RuntimeOptimized:Performance_RefinePlacement"
-  "Flow_AreaOptimized_high:Area_Explore"
-  "Flow_AreaOptimized_medium:Area_ExploreSequential"
-  "Flow_AreaMultThresholdDSP:Performance_RetimingPostRoutePhysOpt"
-)
-
-PAIR="${STRATEGIES[$BATCH_TASK_INDEX]}"
-SYNTH_STRAT="${PAIR%%:*}"
-IMPL_STRAT="${PAIR##*:}"
-
-echo "Task ${BATCH_TASK_INDEX}: synth=${SYNTH_STRAT} impl=${IMPL_STRAT}"
-
-cd /tmp
-rm -rf project
-git clone --depth=1 --branch "GIT_REF_PLACEHOLDER" "GIT_REPO_PLACEHOLDER" project
-cd project
-
-source /tools/Xilinx/Vivado/2020.1/settings64.sh
-export PATH="${GCP_SDK_BIN}:${PATH}"
-
-# Pass strategies via Vivado env vars. The Red Pitaya TCL scripts don't read
-# these by default — patch red_pitaya_vivado_Z20_G2.tcl to honour them if
-# you want strategy sweeps to take effect.
-export VIVADO_SYNTH_STRATEGY="${SYNTH_STRAT}"
-export VIVADO_IMPL_STRATEGY="${IMPL_STRAT}"
-
-# Build bitstream only (not FSBL/DTS which require xsct/SDK)
-make PRJ=v0.94 MODEL=Z20_G2 prj/v0.94/out/red_pitaya.bit || BUILD_FAILED=1
-
-# Tag artifacts with strategy index so they don't collide
-TAG="task${BATCH_TASK_INDEX}_${SYNTH_STRAT}_${IMPL_STRAT}"
-gsutil cp /var/log/build.log "gs://BUCKET_PLACEHOLDER/JOB_NAME_PLACEHOLDER/${TAG}/"
-gsutil -m cp -r prj/v0.94/out/*.bit "gs://BUCKET_PLACEHOLDER/JOB_NAME_PLACEHOLDER/${TAG}/" 2>/dev/null || true
-gsutil -m cp -r prj/v0.94/out/*.rpt "gs://BUCKET_PLACEHOLDER/JOB_NAME_PLACEHOLDER/${TAG}/" 2>/dev/null || true
-
-# Extract WNS (Worst Negative Slack) from the timing report and stash it
-WNS=$(grep -Po 'WNS\(ns\)\s*\K-?[\d.]+' prj/v0.94/out/*.rpt 2>/dev/null | head -1 || echo "N/A")
-echo "${TAG},${WNS}" | gsutil cp - "gs://BUCKET_PLACEHOLDER/JOB_NAME_PLACEHOLDER/${TAG}/wns.csv"
-
-[ -z "${BUILD_FAILED:-}" ]
-EOF
-
-# Substitute placeholders that aren't shell vars on the VM
-BUILD_SCRIPT="${BUILD_SCRIPT//GIT_REF_PLACEHOLDER/${GIT_REF}}"
-BUILD_SCRIPT="${BUILD_SCRIPT//GIT_REPO_PLACEHOLDER/${GIT_REPO}}"
-BUILD_SCRIPT="${BUILD_SCRIPT//BUCKET_PLACEHOLDER/${BUCKET}}"
-BUILD_SCRIPT="${BUILD_SCRIPT//JOB_NAME_PLACEHOLDER/${JOB_NAME}}"
-
+# Substitute @@MARKER@@ values into the task script, then JSON-encode for embedding.
+BUILD_SCRIPT=$(sed \
+  -e "s|@@BUCKET@@|${BUCKET}|g" \
+  -e "s|@@JOB_NAME@@|${JOB_NAME}|g" \
+  -e "s|@@GIT_REF@@|${GIT_REF}|g" \
+  -e "s|@@GIT_REPO@@|${GIT_REPO}|g" \
+  "${SCRIPT_DIR}/sweep-task.sh")
 SCRIPT_JSON=$(printf '%s' "${BUILD_SCRIPT}" | jq -Rs .)
 
 CONFIG=$(cat <<EOF
